@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Irradia | Escáner de entradas</title>
+<style>
+:root{--navy:#010F32;--gold:#D3B847}*{box-sizing:border-box}body{font:16px system-ui,Arial,sans-serif;margin:0;background:#f4f6fa;color:var(--navy)}header{background:var(--navy);color:white;text-align:center;padding:23px 16px;border-bottom:5px solid var(--gold)}h1{color:var(--gold);margin:0;letter-spacing:.15em}header p{font-size:13px}main{max-width:560px;margin:22px auto;padding:0 16px}.panel{background:white;border-radius:14px;padding:20px;box-shadow:0 6px 22px #010f3215}.hint{font-size:13px;line-height:1.6;color:#566071}label{display:block;font-size:13px;font-weight:700;margin:15px 0 6px}button,input{font:inherit}button{border:0;border-radius:7px;background:var(--gold);padding:13px 18px;color:var(--navy);font-weight:800;cursor:pointer;width:100%;margin-top:12px}button:disabled{opacity:.6}input{width:100%;border:1px solid #cbd2df;border-radius:7px;padding:12px}#reader{margin-top:18px;max-width:100%;overflow:hidden}#estado{white-space:pre-wrap;overflow-wrap:anywhere;padding:12px;margin-top:13px;background:#f2f4f8;border-radius:7px;font-size:13px}#codigoDetectado{font-size:12px;overflow-wrap:anywhere}#btnContinuar{display:none;background:var(--navy);color:white}footer{font-size:12px;text-align:center;color:#5a6477;padding:20px}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+</head>
+<body>
+<header><h1>IRRADIA</h1><p>ESCÁNER DE ENTRADAS · ACCESO</p></header>
+<main><div class="panel"><h2>Leer código QR</h2><p class="hint">Escanea la entrada con la cámara. La lectura por sí sola <strong>no permite el ingreso</strong>: se abrirá la aplicación privada de Irradia para validarla.</p>
+<button id="iniciar">ENCENDER CÁMARA</button><button id="detener" disabled>DETENER CÁMARA</button><div id="reader"></div><div id="estado" role="status">Cámara desactivada.</div><p id="codigoDetectado"></p><button id="btnContinuar">ABRIR VALIDADOR PRIVADO</button>
+<p class="hint">Si el dispositivo no permite usar la cámara, utiliza la validación manual dentro de la aplicación privada de Irradia.</p></div></main>
+<footer>IRRADIA · Escuela de artes</footer>
+<script>
+// REEMPLAZAR con la URL /exec de la aplicación PRIVADA de control de ingreso.
+// Nunca uses la URL de la web pública de compradores.
+const VALIDATOR_URL='https://script.google.com/macros/s/AKfycbzeaZLPAA1yYgoT4l74Ux9L4CCvEIBeuK4iFtOfmkl_ghHYQEYt70yP5LNG841Ki8cH/exec';
+const iniciar=document.getElementById('iniciar');
+const detener=document.getElementById('detener');
+const estado=document.getElementById('estado');
+const continuar=document.getElementById('btnContinuar');
+const detectado=document.getElementById('codigoDetectado');
+let lector=null, leyendo=false, ocupado=false, codigoPendiente='';
+function mensaje(t){estado.textContent=t}
+function normalizar(s){const v=String(s||'').trim();return v.startsWith('IRRADIA|')?v.slice(8):v}
+function urlValidador(){try{const u=new URL(VALIDATOR_URL);return u.protocol==='https:'&&u.hostname==='script.google.com'&&u.pathname.endsWith('/exec')?u:null}catch(e){return null}}
+async function parar(){if(!lector||!leyendo)return;try{await lector.stop()}catch(e){} leyendo=false;iniciar.disabled=false;detener.disabled=true}
+iniciar.addEventListener('click',async()=>{
+  if(!urlValidador()){mensaje('Configura la URL privada /exec en este archivo antes de usarlo.');return}
+  if(typeof Html5Qrcode==='undefined'){mensaje('No se pudo cargar la biblioteca de lectura. Comprueba la conexión a Internet.');return}
+  ocupado=false;codigoPendiente='';continuar.style.display='none';detectado.textContent='';
+  lector=new Html5Qrcode('reader');
+  try{
+    await lector.start({facingMode:'environment'},{fps:10,qrbox:{width:220,height:220}},async valor=>{
+      if(ocupado)return;
+      const codigo=normalizar(valor);
+      if(!/^QR-[A-F0-9]{32}$/.test(codigo)){mensaje('Se detectó un QR que no es una entrada de Irradia.');return}
+      ocupado=true;codigoPendiente=codigo;
+      mensaje('Código leído. Abre el validador privado y confirma la función antes de registrar el ingreso.');
+      detectado.textContent='Código: '+codigo;
+      continuar.style.display='block';
+      await parar();
+    },()=>{});
+    leyendo=true;iniciar.disabled=true;detener.disabled=false;mensaje('Apunta la cámara al QR de una entrada.');
+  }catch(e){mensaje('No se pudo iniciar la cámara: '+String(e&&e.message||e));iniciar.disabled=false;detener.disabled=true}
+});
+detener.addEventListener('click',()=>{parar().then(()=>mensaje('Cámara detenida.'))});
+continuar.addEventListener('click',()=>{
+  const url=urlValidador();if(!url||!codigoPendiente)return;
+  url.searchParams.set('code',codigoPendiente);
+  window.location.assign(url.toString());
+});
+</script>
+</body></html>
